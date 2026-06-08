@@ -1,7 +1,3 @@
-import { waitUntil } from 'async-wait-until';
-import App from './App.vue';
-import './global.css';
-
 export const P5RParser = {
   filterThinking(msg) {
     if (!msg) return '';
