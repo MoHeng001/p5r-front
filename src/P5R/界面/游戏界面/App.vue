@@ -422,11 +422,7 @@ async function checkSaveData(): Promise<boolean> {
       const vars = Mvu.getMvuData({ type: 'message', message_id: 0 }) || {}
       const statData = parseStatData(vars)
       if (statData && statData.主角信息 && statData.主角信息.姓名) return true
-    }
-    if (typeof SillyTavern !== 'undefined' && SillyTavern.chat && SillyTavern.chat.length > 0) return true
-    if (typeof getChatMessages === 'function') {
-      const msgs = getChatMessages(0)
-      if (msgs && msgs.length > 0) return true
+      if (statData && statData.时间系统 && statData.时间系统.当前阶段) return true
     }
   } catch (e) { console.warn('[P5R Start] 存档检查失败:', e) }
   const localData = localStorage.getItem('p5r_character_data')
