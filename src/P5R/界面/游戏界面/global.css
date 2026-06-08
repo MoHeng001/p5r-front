@@ -295,9 +295,9 @@ body {
 
 /* Transition overlay (screen wipe) */
 .transition-overlay {
-  position: fixed;
-  top: 0; left: -100vw;
-  width: 100vw; height: 100vh;
+  position: absolute;
+  top: 0; left: -100%;
+  width: 100%; height: 100%;
   background: var(--p5-black);
   z-index: 9999;
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
@@ -310,7 +310,7 @@ body {
   animation: wipeIn 1.2s cubic-bezier(0.77, 0, 0.175, 1) forwards;
 }
 @keyframes wipeIn {
-  0% { left: -120vw; }
+  0% { left: -120%; }
   40% { left: 0; clip-path: polygon(0 0, 100% 0, 100% 100%, 0% 100%); }
   100% { left: 0; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
 }
@@ -347,13 +347,13 @@ body {
 }
 
 .create-page .bg-layer {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background: radial-gradient(circle at center, #1a1a1a 0%, var(--p5-black) 100%);
   z-index: -3;
 }
 
 .create-page .chains-bg {
-  position: fixed; top: -10%; left: -10%; width: 120%; height: 120%;
+  position: absolute; top: -10%; left: -10%; width: 120%; height: 120%;
   background-image:
     repeating-linear-gradient(45deg, transparent, transparent 100px, rgba(255,255,255,0.03) 100px, rgba(255,255,255,0.03) 120px),
     repeating-linear-gradient(-45deg, transparent, transparent 100px, rgba(255,255,255,0.03) 100px, rgba(255,255,255,0.03) 120px);
@@ -363,7 +363,7 @@ body {
 }
 
 .create-page .bg-text {
-  position: fixed; font-family: var(--font-accent); font-size: 15vw;
+  position: absolute; font-family: var(--font-accent); font-size: 15vw;
   color: rgba(230, 0, 18, 0.03); line-height: 0.8; z-index: -1;
   transform: rotate(-10deg); white-space: nowrap; pointer-events: none;
 }
@@ -595,7 +595,7 @@ body {
 
 /* Background decoration */
 .game-page .background-layer {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background-image: radial-gradient(var(--p5-red) 15%, transparent 16%), radial-gradient(var(--p5-red) 15%, transparent 16%);
   background-size: 20px 20px; background-position: 0 0, 10px 10px;
   opacity: 0.15; z-index: -2; animation: moveDotsGame 20s linear infinite;
@@ -603,7 +603,7 @@ body {
 @keyframes moveDotsGame { 0% { background-position: 0 0, 10px 10px; } 100% { background-position: 100px 100px, 110px 110px; } }
 
 .game-page .bg-text {
-  position: fixed; font-family: var(--font-accent); font-size: 20vw;
+  position: absolute; font-family: var(--font-accent); font-size: 20vw;
   color: rgba(230, 0, 18, 0.05); line-height: 0.8; z-index: -1;
   transform: rotate(-15deg); white-space: nowrap; pointer-events: none;
 }
@@ -612,7 +612,7 @@ body {
 
 /* HUD */
 .hud-panel {
-  position: fixed; top: 1rem; left: 1rem; display: flex; flex-direction: column; gap: 5px; z-index: 100; pointer-events: none;
+  position: absolute; top: 1rem; left: 1rem; display: flex; flex-direction: column; gap: 5px; z-index: 100; pointer-events: none;
 }
 .hud-item {
   background: var(--p5-white); color: var(--p5-black); padding: 8px 15px;
@@ -727,14 +727,14 @@ body {
 
 /* ================= Modals ================= */
 .modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 1000;
   display: flex; justify-content: center; align-items: center;
   opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
 }
 .modal-overlay.active { opacity: 1; pointer-events: auto; }
 .modal-content {
-  background: var(--p5-black); width: 90vw; height: 90vh;
+  background: var(--p5-black); width: 90%; height: 90%;
   border: 5px solid var(--p5-white);
   clip-path: polygon(1% 0, 100% 0, 99% 100%, 0% 100%);
   position: relative; transform: scale(0.9) rotate(2deg);
@@ -866,7 +866,7 @@ body {
 
 /* ================= Battle Overlay ================= */
 .battle-overlay {
-  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
   background: rgba(0,0,0,0.85); z-index: 2000; display: none;
   align-items: center; justify-content: center;
 }
@@ -935,7 +935,7 @@ body {
 
 /* ================= Chronicle ================= */
 .chron-btn {
-  position: fixed; bottom: 1rem; left: 1rem; z-index: 800;
+  position: absolute; bottom: 1rem; left: 1rem; z-index: 800;
   background: var(--p5-red); color: #fff; font-weight: 900;
   padding: 0.3rem 0.6rem; font-size: 0.65rem; cursor: pointer;
   clip-path: polygon(5% 0, 100% 0, 95% 100%, 0% 100%);
@@ -943,7 +943,7 @@ body {
 }
 .chron-btn:hover { background: #fff; color: var(--p5-red); }
 .chron-panel {
-  position: fixed; bottom: 2.5rem; left: 1rem; z-index: 801;
+  position: absolute; bottom: 2.5rem; left: 1rem; z-index: 801;
   background: #0a0a0a; border: 2px solid var(--p5-red); width: 320px;
   max-height: 50vh; overflow-y: auto; padding: 0.6rem;
   display: none; font-size: 0.75rem;

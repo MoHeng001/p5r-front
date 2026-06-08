@@ -432,13 +432,8 @@ async function checkSaveData(): Promise<boolean> {
 
 async function startGame() {
   transitioning.value = true
-  const hasData = await checkSaveData()
   setTimeout(() => {
-    if (hasData) {
-      view.value = 'game'
-    } else {
-      view.value = 'create'
-    }
+    view.value = 'create'
     transitioning.value = false
   }, 1800)
 }
@@ -815,10 +810,7 @@ function loadCOOP() {
     }
     coopHtml.value = html || '<div style="color:#888;text-align:center;padding:2rem">暂无社群数据</div>'
   } else {
-    coopHtml.value = `<div class="coop-card"><div class="coop-header"><span class="coop-name">高卷杏</span><span class="coop-gender gender-f"><i class="fa-solid fa-venus"></i></span></div><div class="coop-rank"><span class="rank-num">MAX</span><span class="stars">★★★★★</span></div><div class="coop-relation relation-lover">恋人 / 恋爱</div><p style="margin-top:15px;font-size:0.9rem;color:#ccc;">怪盗团的女演员，充满正义感的同班同学。</p></div>
-    <div class="coop-card"><div class="coop-header"><span class="coop-name">坂本龙司</span><span class="coop-gender gender-m"><i class="fa-solid fa-mars"></i></span></div><div class="coop-rank"><span class="rank-num">RANK 8</span><span class="stars">★★★★☆</span></div><div class="coop-relation relation-friend">挚友 / 战车</div><p style="margin-top:15px;font-size:0.9rem;color:#ccc;">冲动但重情义的死党，怪盗团的突击队长。</p></div>
-    <div class="coop-card"><div class="coop-header"><span class="coop-name">武见妙</span><span class="coop-gender gender-f"><i class="fa-solid fa-venus"></i></span></div><div class="coop-rank"><span class="rank-num">RANK 5</span><span class="stars">★★★☆☆</span></div><div class="coop-relation">合作者 / 死神</div><p style="margin-top:15px;font-size:0.9rem;color:#ccc;">四轩茶屋的黑市医生，提供珍贵的恢复道具。</p></div>
-    <div class="coop-card"><div class="coop-header"><span class="coop-name">明智吾郎</span><span class="coop-gender gender-m"><i class="fa-solid fa-mars"></i></span></div><div class="coop-rank"><span class="rank-num">RANK 2</span><span class="stars">★☆☆☆☆</span></div><div class="coop-relation" style="background:#555;color:white;">陌生人 / 正义</div><p style="margin-top:15px;font-size:0.9rem;color:#ccc;">高中生侦探，目前对怪盗团持怀疑态度。</p></div>`
+    coopHtml.value = '<div style="color:#888;text-align:center;padding:2rem;grid-column:1/-1;">暂无社群数据<br><span style="font-size:0.85rem;">进行游戏后，社群关系将在此显示</span></div>'
   }
 }
 
@@ -841,13 +833,7 @@ function loadItems() {
     }
     itemsHtml.value = html || '<div style="color:#888;text-align:center;padding:2rem">暂无物品</div>'
   } else {
-    itemsHtml.value = `<div class="item-slot"><i class="fa-solid fa-capsules"></i><span class="item-name">还魂丹</span><span class="item-count">x3</span></div>
-    <div class="item-slot"><i class="fa-solid fa-mug-hot"></i><span class="item-name">勒布朗咖啡</span><span class="item-count">x5</span></div>
-    <div class="item-slot"><i class="fa-solid fa-bomb"></i><span class="item-name">业火勾玉</span><span class="item-count">x12</span></div>
-    <div class="item-slot"><i class="fa-solid fa-key"></i><span class="item-name">开锁工具</span><span class="item-count">x99</span></div>
-    <div class="item-slot"><i class="fa-solid fa-gun"></i><span class="item-name">托卡列夫</span><span class="item-count">x1</span></div>
-    <div class="item-slot"><i class="fa-solid fa-burger"></i><span class="item-name">大爆炸汉堡</span><span class="item-count">x2</span></div>
-    <div class="item-slot"><i class="fa-solid fa-mask"></i><span class="item-name">怪盗面具</span><span class="item-count">x1</span></div>`
+    itemsHtml.value = '<div style="color:#888;text-align:center;padding:2rem;grid-column:1/-1;">背包为空<br><span style="font-size:0.85rem;">获得的物品将在此显示</span></div>'
   }
 }
 
