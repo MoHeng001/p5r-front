@@ -484,58 +484,48 @@ async function submitContract() {
 
   submitting.value = true
   try {
-    if (typeof Mvu !== 'undefined' || typeof waitGlobalInitialized === 'function') {
-      if (typeof waitGlobalInitialized === 'function') await waitGlobalInitialized('Mvu')
+    localStorage.setItem('p5r_character_data', JSON.stringify(data))
 
-      const timeNodeMap: Record<string, any> = {
-        prologue: { 日期: '2015年04月09日-星期四', 时段: '白天', 当前阶段: '序章' },
-        kamoshida: { 日期: '2015年04月11日-星期六', 时段: '放学后', 当前阶段: '第一章·鸭志田' },
-        madarame: { 日期: '2015年05月16日-星期六', 时段: '放学后', 当前阶段: '第二章·斑目' },
-        kaneshiro: { 日期: '2015年06月21日-星期日', 时段: '白天', 当前阶段: '第三章·金城' },
-        futaba: { 日期: '2015年07月25日-星期六', 时段: '白天', 当前阶段: '第四章·双叶' },
-        midgame: { 日期: '2015年07月25日-星期六', 时段: '白天', 当前阶段: '第四章·双叶' },
-      }
-      const patchOps = [
-        { op: 'replace', path: '/主角信息/姓名', value: data.姓名 },
-        { op: 'replace', path: '/主角信息/身份', value: data.身份 },
-        { op: 'replace', path: '/主角信息/性别', value: data.性别 },
-        { op: 'replace', path: '/主角信息/面具', value: data.面具 },
-      ]
-      if (data.外貌) patchOps.push({ op: 'replace', path: '/主角信息/外貌', value: data.外貌 })
-      if (data.性格) patchOps.push({ op: 'replace', path: '/主角信息/性格', value: data.性格 })
-      const tn = timeNodeMap[data.timeNode] || timeNodeMap.prologue
-      patchOps.push({ op: 'replace', path: '/时间系统/日期', value: tn.日期 })
-      patchOps.push({ op: 'replace', path: '/时间系统/时段', value: tn.时段 })
-      patchOps.push({ op: 'replace', path: '/剧情进度/当前阶段', value: tn.当前阶段 })
+    if (typeof createChatMessages === 'function' && typeof generate === 'function') {
+      const userList = data.mode === 'joker'
+        ? `[系统] 玩家选择扮演Joker（雨宫莲），时间节点：${data.timeNode}。请根据角色卡世界书设定，以<content>标签输出开场剧情，描述主角抵达四轩茶屋·卢布朗咖啡店的情景。同时用<option>标签提供3-5个初始行动选项。`
+        : `[系统] 玩家创建自定义角色：姓名${data.姓名}，代号${data.身份}，性别${data.性别}，面具${data.面具}。时间节点：${data.timeNode}。请根据角色卡世界书设定，以<content>标签输出开场剧情，描述该角色抵达四轩茶屋的情景。同时用<option>标签提供3-5个初始行动选项。`
 
-      const patchTag = '<UpdateVariable>\n<Analysis>Character creation - initial setup</Analysis>\n<JSONPatch>\n' + JSON.stringify(patchOps, null, 2) + '\n</JSONPatch>\n</UpdateVariable>'
+      await createChatMessages([{ role: 'user', message: userList }], { refresh: 'none' })
+      await generate()
 
-      if (typeof createChatMessages === 'function') {
-        await createChatMessages([
-          { role: 'user', message: data.mode === 'joker' ? '[系统] 玩家选择扮演Joker，时间节点：' + data.timeNode : '[系统] 玩家创建自定义角色：' + data.姓名 + ' / ' + data.身份 }
-        ], { refresh: 'none' })
+      view.value = 'game'
+      await nextTick()
+      await loadStatData()
 
-        if (typeof Mvu !== 'undefined' && typeof Mvu.parseMessage === 'function') {
-          const baseData = Mvu.getMvuData({ type: 'message', message_id: 0 }) || {}
-          const result = await Mvu.parseMessage(patchTag, baseData)
-          if (result) {
-            await Mvu.replaceMvuData(result, { type: 'message', message_id: 'latest' })
+      const lastMsgId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1
+      if (lastMsgId >= 0) {
+        const msgs = typeof getChatMessages === 'function' ? getChatMessages(lastMsgId, {}) as any[] : []
+        if (msgs.length > 0) {
+          const raw = msgs[0].mes || msgs[0].message || ''
+          const parsed = P5RParser.parseMessage(raw)
+          if (parsed && parsed.content) {
+            appendMessage('system', parsed.content)
+          }
+          if (parsed && parsed.options) {
+            currentOptions.value = parsed.options
+          }
+          if (parsed && parsed.battlePanels && parsed.battlePanels.length > 0) {
+            showBattle(parsed.battlePanels)
+          }
+          if (parsed && parsed.summary) {
+            chronicleEntries.value.push({ date: hud.date, text: parsed.summary })
+          }
+          if (parsed && parsed.updateVariable) {
+            await applyParsedUpdate(parsed.updateVariable)
           }
         }
-
-        if (typeof generate === 'function') {
-          await generate()
-        }
-      } else {
-        localStorage.setItem('p5r_character_data', JSON.stringify(data))
       }
     } else {
-      localStorage.setItem('p5r_character_data', JSON.stringify(data))
+      view.value = 'game'
     }
-    view.value = 'game'
   } catch (error) {
     console.error('[P5R Create] 契约签订失败:', error)
-    localStorage.setItem('p5r_character_data', JSON.stringify(data))
     view.value = 'game'
   } finally {
     submitting.value = false
