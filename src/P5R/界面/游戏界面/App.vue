@@ -307,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, nextTick, watch, computed } from 'vue'
+import { ref, reactive, onMounted, nextTick, computed, watch } from 'vue'
 import { useDataStore } from './store'
 import { P5RParser } from './parser'
 import {
@@ -351,8 +351,8 @@ const hud = reactive({
   location: '四轩茶屋 / 卢布朗咖啡店',
 })
 
-const coopHtml = ref(`<div style="color:#888;text-align:center;padding:2rem">社群数据加载中...</div>`)
-const itemsHtml = ref(`<div style="color:#888;text-align:center;padding:2rem">物品数据加载中...</div>`)
+const coopHtml = ref('<div style="color:#888;text-align:center;padding:2rem;grid-column:1/-1;">暂无社群数据<br><span style="font-size:0.85rem;">进行游戏后，社群关系将在此显示</span></div>')
+const itemsHtml = ref('<div style="color:#888;text-align:center;padding:2rem;grid-column:1/-1;">背包为空<br><span style="font-size:0.85rem;">获得的物品将在此显示</span></div>')
 
 const optLabelMap: Record<string, string> = { attack: '攻击', skill: '技能', defend: '防御', item: '道具', '1more': '1MORE', allout: '总攻', analyze: '分析', flee: '逃跑', negotiate: '交涉', normal: '' }
 const optBadgeMap: Record<string, string> = { attack: 'atk', skill: 'skill', defend: 'defend', item: 'item', '1more': 'one-more', allout: 'all-out', analyze: 'neg', flee: 'flee', negotiate: 'neg', normal: 'neg' }
@@ -360,9 +360,10 @@ function optLabel(opt: any) { return optLabelMap[opt.type] || '' }
 function optBadgeClass(opt: any) { return optBadgeMap[opt.type] || 'neg' }
 
 let currentMsgId = -1
+let lastProcessedMsgId = -1
 
-function getMsgId() {
-  if (typeof getCurrentMessageId === 'function') return getCurrentMessageId()
+function getMsgId(): number {
+  if (typeof getLastMessageId === 'function') return getLastMessageId()
   if (typeof SillyTavern !== 'undefined' && SillyTavern.chat) return SillyTavern.chat.length - 1
   return 0
 }
@@ -372,6 +373,45 @@ function parseStatData(vars: any): any {
     return (_.get(vars, 'stat_data') || _.get(vars, 'data.stat_data')) || {}
   }
   return (vars.stat_data || (vars.data && vars.data.stat_data)) || {}
+}
+
+function hasChatMessages(): boolean {
+  try {
+    if (typeof SillyTavern !== 'undefined' && SillyTavern.chat) {
+      return SillyTavern.chat.length > 0
+    }
+    if (typeof getLastMessageId === 'function') {
+      return getLastMessageId() >= 0
+    }
+  } catch {}
+  return false
+}
+
+function getLatestMessage(): string {
+  try {
+    const lastId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1
+    if (lastId < 0) return ''
+    const msgs = typeof getChatMessages === 'function' ? getChatMessages(lastId, {}) as any[] : []
+    if (msgs.length > 0) return msgs[0].mes || msgs[0].message || ''
+  } catch (e) { console.error('[P5R] 获取最新消息失败:', e) }
+  return ''
+}
+
+function updateHUDFromData(d: any) {
+  const t = d.时间系统 || {}
+  hud.date = (t.日期 || '04/09').replace(/年/g, '/').replace(/月/g, '/').replace(/日.*/, '').substring(0, 5) || '04/09'
+  hud.weather = t.天气 || t.时段 || '晴'
+  hud.location = t.当前地点 || '四轩茶屋 / 卢布朗咖啡店'
+}
+
+function updateHUDFromStore(d: any) {
+  if (d.时间系统) {
+    hud.date = (d.时间系统.日期 || '04/09').replace(/年/g, '/').replace(/月/g, '/').replace(/日.*/, '').substring(0, 5)
+    hud.weather = d.时间系统.天气 || d.时间系统.时段 || '--'
+  }
+  if (d.主角信息) {
+    hud.location = d.时间系统?.当前地点 || '四轩茶屋 / 卢布朗咖啡店'
+  }
 }
 
 async function loadStatData() {
@@ -393,29 +433,6 @@ async function loadStatData() {
   } catch (e) { console.error('[P5R] 状态加载失败:', e) }
 }
 
-function updateHUDFromData(d: any) {
-  const t = d.时间系统 || {}
-  const p = d.主角信息 || {}
-  hud.date = (t.日期 || '04/09').replace(/年/g, '/').replace(/月/g, '/').replace(/日.*/, '').substring(0, 5) || '04/09'
-  hud.weather = t.天气 || t.时段 || '晴'
-  hud.location = t.当前地点 || '四轩茶屋 / 卢布朗咖啡店'
-}
-
-function updateHUDFromStore(d: any) {
-  if (d.时间系统) {
-    hud.date = (d.时间系统.日期 || '04/09').replace(/年/g, '/').replace(/月/g, '/').replace(/日.*/, '').substring(0, 5)
-    hud.weather = d.时间系统.天气 || d.时间系统.时段 || '--'
-  }
-  if (d.主角信息) {
-    hud.location = d.时间系统?.当前地点 || '四轩茶屋 / 卢布朗咖啡店'
-  }
-}
-
-watch(() => store.data, (data) => {
-  if (!data) return
-  updateHUDFromStore(data as any)
-}, { deep: true })
-
 async function checkSaveData(): Promise<boolean> {
   try {
     if (typeof Mvu !== 'undefined') {
@@ -430,21 +447,75 @@ async function checkSaveData(): Promise<boolean> {
   return false
 }
 
+async function refreshAll() {
+  try {
+    const lastId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1
+    if (lastId < 0) return
+
+    if (lastId === lastProcessedMsgId) {
+      await loadStatData()
+      loadCOOP()
+      loadItems()
+      return
+    }
+    lastProcessedMsgId = lastId
+
+    const msgs = typeof getChatMessages === 'function' ? getChatMessages(lastId, {}) as any[] : []
+    if (msgs.length === 0) return
+
+    const raw = msgs[0].mes || msgs[0].message || ''
+    const parsed = P5RParser.parseMessage(raw)
+
+    if (parsed.content) {
+      appendMessage('system', parsed.content)
+    } else if (parsed.raw) {
+      let displayText = parsed.raw
+      displayText = displayText.replace(/<action_info[\s\S]*?<\/action_info>/gi, '')
+      displayText = displayText.replace(/<UpdateVariable[\s\S]*?<\/UpdateVariable>/gi, '')
+      displayText = displayText.replace(/<option[^>]*>[\s\S]*?<\/option>/gi, '')
+      displayText = displayText.replace(/<sum[\s\S]*?<\/sum>/gi, '')
+      displayText = displayText.replace(/<content>([\s\S]*?)<\/content>/gi, '$1')
+      const trimmed = displayText.trim()
+      if (trimmed) appendMessage('system', trimmed)
+    }
+
+    currentOptions.value = parsed.options && parsed.options.length > 0 ? parsed.options : []
+
+    if (parsed.battlePanels && parsed.battlePanels.length > 0) {
+      showBattle(parsed.battlePanels)
+    }
+
+    if (parsed.updateVariable) {
+      await applyParsedUpdate(parsed.updateVariable)
+    }
+
+    if (parsed.summary) {
+      chronicleEntries.value.push({ date: hud.date, text: parsed.summary })
+    }
+
+    await loadStatData()
+    loadCOOP()
+    loadItems()
+  } catch (e) {
+    console.error('[P5R] refreshAll failed:', e)
+  }
+}
+
 async function startGame() {
   transitioning.value = true
-  setTimeout(() => {
-    view.value = 'create'
-    transitioning.value = false
-  }, 1800)
+  await new Promise(resolve => setTimeout(resolve, 1800))
+  view.value = 'create'
+  transitioning.value = false
 }
 
 async function loadGame() {
   if (!hasSave.value) return
   transitioning.value = true
-  setTimeout(() => {
-    view.value = 'game'
-    transitioning.value = false
-  }, 1800)
+  await new Promise(resolve => setTimeout(resolve, 1800))
+  view.value = 'game'
+  transitioning.value = false
+  await nextTick()
+  await refreshAll()
 }
 
 function switchMode(mode: 'joker' | 'custom') {
@@ -487,6 +558,37 @@ async function submitContract() {
     localStorage.setItem('p5r_character_data', JSON.stringify(data))
 
     if (typeof createChatMessages === 'function' && typeof generate === 'function') {
+      if (typeof updateVariablesWith === 'function') {
+        try {
+          await updateVariablesWith(
+            (vars: any) => {
+              if (!vars) vars = {}
+              if (!vars.stat_data) vars.stat_data = {}
+              const sd = vars.stat_data
+              if (!sd.主角信息) sd.主角信息 = {}
+              sd.主角信息.姓名 = data.姓名
+              sd.主角信息.身份 = data.身份
+              sd.主角信息.性别 = data.性别
+              if (data.mode === 'joker') {
+                sd.主角信息.面具 = data.面具
+                sd.主角信息.阿尔卡那 = '愚者'
+              } else {
+                sd.主角信息.面具 = data.面具
+                sd.主角信息.阿尔卡那 = data.arcana || '愚者'
+                if (data.外貌) sd.主角信息.外貌 = data.外貌
+                if (data.性格) sd.主角信息.性格 = data.性格
+              }
+              if (!sd.时间系统) sd.时间系统 = {}
+              sd.时间系统.当前阶段 = data.timeNode
+              return vars
+            },
+            { type: 'message', message_id: 0 }
+          )
+        } catch (e) {
+          console.warn('[P5R] MVU写入失败:', e)
+        }
+      }
+
       const userList = data.mode === 'joker'
         ? `[系统] 玩家选择扮演Joker（雨宫莲），时间节点：${data.timeNode}。请根据角色卡世界书设定，以<content>标签输出开场剧情，描述主角抵达四轩茶屋·卢布朗咖啡店的情景。同时用<option>标签提供3-5个初始行动选项。`
         : `[系统] 玩家创建自定义角色：姓名${data.姓名}，代号${data.身份}，性别${data.性别}，面具${data.面具}。时间节点：${data.timeNode}。请根据角色卡世界书设定，以<content>标签输出开场剧情，描述该角色抵达四轩茶屋的情景。同时用<option>标签提供3-5个初始行动选项。`
@@ -496,36 +598,12 @@ async function submitContract() {
 
       view.value = 'game'
       await nextTick()
-      await loadStatData()
-
-      const lastMsgId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1
-      if (lastMsgId >= 0) {
-        const msgs = typeof getChatMessages === 'function' ? getChatMessages(lastMsgId, {}) as any[] : []
-        if (msgs.length > 0) {
-          const raw = msgs[0].mes || msgs[0].message || ''
-          const parsed = P5RParser.parseMessage(raw)
-          if (parsed && parsed.content) {
-            appendMessage('system', parsed.content)
-          }
-          if (parsed && parsed.options) {
-            currentOptions.value = parsed.options
-          }
-          if (parsed && parsed.battlePanels && parsed.battlePanels.length > 0) {
-            showBattle(parsed.battlePanels)
-          }
-          if (parsed && parsed.summary) {
-            chronicleEntries.value.push({ date: hud.date, text: parsed.summary })
-          }
-          if (parsed && parsed.updateVariable) {
-            await applyParsedUpdate(parsed.updateVariable)
-          }
-        }
-      }
+      await refreshAll()
     } else {
       view.value = 'game'
     }
   } catch (error) {
-    console.error('[P5R Create] 契约签订失败:', error)
+    console.error('[P5R] 契约签订失败:', error)
     view.value = 'game'
   } finally {
     submitting.value = false
@@ -564,33 +642,49 @@ async function doAction(text: string) {
       await createChatMessages([{ role: 'user', message: userInput }], { refresh: 'none' })
       await generate()
 
-      const parsed = P5RParser.parseMessage(
-        typeof getLastMessageId === 'function'
-          ? (getChatMessages(getLastMessageId(), {}) as any)?.[0]?.mes || ''
-          : (SillyTavern?.chat?.[SillyTavern.chat.length - 1]?.mes || '')
-      )
+      const lastId = typeof getLastMessageId === 'function' ? getLastMessageId() : -1
+      if (lastId >= 0) {
+        lastProcessedMsgId = lastId
 
-      if (parsed && parsed.content) {
-        appendMessage('system', parsed.content)
-        renderOptionsFromParsed(parsed.options)
-        if (parsed.battlePanels && parsed.battlePanels.length > 0) showBattle(parsed.battlePanels)
-        if (parsed.summary) chronicleEntries.value.push({ date: hud.date, text: parsed.summary })
-        if (parsed.updateVariable) await applyParsedUpdate(parsed.updateVariable)
-      } else if (parsed && parsed.raw) {
-        let displayText = parsed.raw
-        displayText = displayText.replace(/<action_info[\s\S]*?<\/action_info>/gi, '')
-        displayText = displayText.replace(/<UpdateVariable[\s\S]*?<\/UpdateVariable>/gi, '')
-        displayText = displayText.replace(/<option[^>]*>[\s\S]*?<\/option>/gi, '')
-        displayText = displayText.replace(/<sum[\s\S]*?<\/sum>/gi, '')
-        displayText = displayText.replace(/<content>([\s\S]*?)<\/content>/gi, '$1')
-        appendMessage('system', displayText.trim())
-      } else {
-        const messages = typeof getChatMessages === 'function' ? getChatMessages(-1, { role: 'assistant' }) : null
-        if (messages && messages.length > 0) {
-          appendMessage('system', (messages[0] as any).message || (messages[0] as any).mes || '(AI回复为空)')
+        const msgs = typeof getChatMessages === 'function' ? getChatMessages(lastId, {}) as any[] : []
+        if (msgs.length > 0) {
+          const raw = msgs[0].mes || msgs[0].message || ''
+          const parsed = P5RParser.parseMessage(raw)
+
+          if (parsed.content) {
+            appendMessage('system', parsed.content)
+          } else if (parsed.raw) {
+            let displayText = parsed.raw
+            displayText = displayText.replace(/<action_info[\s\S]*?<\/action_info>/gi, '')
+            displayText = displayText.replace(/<UpdateVariable[\s\S]*?<\/UpdateVariable>/gi, '')
+            displayText = displayText.replace(/<option[^>]*>[\s\S]*?<\/option>/gi, '')
+            displayText = displayText.replace(/<sum[\s\S]*?<\/sum>/gi, '')
+            displayText = displayText.replace(/<content>([\s\S]*?)<\/content>/gi, '$1')
+            const trimmed = displayText.trim()
+            if (trimmed) appendMessage('system', trimmed)
+          }
+
+          if (parsed.options && parsed.options.length > 0) {
+            currentOptions.value = parsed.options
+          }
+
+          if (parsed.battlePanels && parsed.battlePanels.length > 0) {
+            showBattle(parsed.battlePanels)
+          }
+
+          if (parsed.updateVariable) {
+            await applyParsedUpdate(parsed.updateVariable)
+          }
+
+          if (parsed.summary) {
+            chronicleEntries.value.push({ date: hud.date, text: parsed.summary })
+          }
         }
       }
+
       await loadStatData()
+      loadCOOP()
+      loadItems()
     } else if (typeof SillyTavern !== 'undefined' && SillyTavern.sendUserMessage) {
       await SillyTavern.sendUserMessage(userInput)
     } else {
@@ -605,16 +699,12 @@ async function doAction(text: string) {
   }
 }
 
-function renderOptionsFromParsed(options: any[]) {
-  if (!options || options.length === 0) { currentOptions.value = []; return }
-  currentOptions.value = options
-}
-
 async function applyParsedUpdate(updateVar: any) {
   if (!updateVar) return
   try {
     if (typeof waitGlobalInitialized === 'function') await waitGlobalInitialized('Mvu')
     if ((updateVar.type === 'jsonPatch' || updateVar.type === 'raw') && typeof Mvu !== 'undefined') {
+      currentMsgId = getMsgId()
       const oldData = Mvu.getMvuData({ type: 'message', message_id: currentMsgId }) || {}
       const fullTag = '<UpdateVariable>' + updateVar.raw + '</UpdateVariable>'
       const result = await Mvu.parseMessage(fullTag, oldData)
@@ -830,32 +920,37 @@ function loadItems() {
 watch(() => modalState.members, (v) => { if (v) loadCOOP() })
 watch(() => modalState.inventory, (v) => { if (v) loadItems() })
 
+watch(() => store.data, (data) => {
+  if (!data) return
+  updateHUDFromStore(data as any)
+}, { deep: true })
+
 onMounted(async () => {
-  hasSave.value = await checkSaveData()
-  if (view.value === 'game') await loadStatData()
-
-  if (typeof SillyTavern !== 'undefined') {
-    const chat = SillyTavern.chat || []
-    if (chat.length > 0) {
-      const lastMsg = chat[chat.length - 1]
-      if (lastMsg && !lastMsg.is_user) {
-        const parsed = P5RParser.parseMessage(lastMsg.mes || '')
-        if (parsed && parsed.content) {
-          appendMessage('system', parsed.content)
-        }
-        if (parsed && parsed.options) currentOptions.value = parsed.options
-        if (parsed && parsed.battlePanels && parsed.battlePanels.length > 0) showBattle(parsed.battlePanels)
-      }
+  try {
+    if (typeof waitGlobalInitialized === 'function') {
+      await waitGlobalInitialized('Mvu')
     }
+  } catch (e) {
+    console.warn('[P5R] Mvu init timeout:', e)
   }
-})
 
-watch(view, async (v) => {
-  if (v === 'game') {
+  hasSave.value = await checkSaveData()
+
+  if (typeof eventOn === 'function' && typeof tavern_events !== 'undefined') {
+    eventOn(tavern_events.MESSAGE_RECEIVED, () => {
+      setTimeout(() => refreshAll(), 300)
+    })
+    eventOn(tavern_events.MESSAGE_UPDATED, () => {
+      setTimeout(() => refreshAll(), 200)
+    })
+  }
+
+  if (hasChatMessages()) {
+    view.value = 'game'
     await nextTick()
-    await loadStatData()
-    loadCOOP()
-    loadItems()
+    await refreshAll()
+  } else {
+    view.value = 'start'
   }
 })
 </script>
